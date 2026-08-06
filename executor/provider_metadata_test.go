@@ -4,12 +4,23 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func TestProviderMetadataSourceOmitsLoaderProvenance(t *testing.T) {
+	encoded, err := json.Marshal(ProviderMetadataSource{Schema: ProviderMetadataSchema, Count: 2, Source: "private-cdn", Fallback: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text := string(encoded); strings.Contains(text, "private-cdn") || strings.Contains(text, "fallback") || strings.Contains(text, "source") {
+		t.Fatalf("provider metadata provenance leaked: %s", text)
+	}
+}
 
 func TestLoadProviderMetadataPrefersValidatedRemote(t *testing.T) {
 	remote := []byte(`{"schema_version":"goecs.unlocktests/provider-metadata-v1","generated_at":"2026-07-20T00:00:00Z","providers":[{"name":"Zeta","category":"ai"},{"name":"Alpha","category":"ai"}]}`)

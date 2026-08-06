@@ -46,8 +46,8 @@ type ProviderMetadataSource struct {
 	Schema      string    `json:"schema"`
 	Count       int       `json:"count"`
 	GeneratedAt time.Time `json:"generated_at,omitempty"`
-	Source      string    `json:"source"`
-	Fallback    bool      `json:"fallback"`
+	Source      string    `json:"-"`
+	Fallback    bool      `json:"-"`
 }
 
 type providerMetadataDocument struct {
