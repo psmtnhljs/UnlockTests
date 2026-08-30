@@ -71,6 +71,11 @@ var Ipv6HttpClient = &http.Client{
 	Transport: Ipv6Transport,
 }
 
+// reqBaseClient is initialized before callers can start concurrent output
+// capture. Request helpers clone it so client creation never rereads a mutable
+// process-wide stdout handle.
+var reqBaseClient = req.C()
+
 // ParseInterface 解析网卡IP地址
 func ParseInterface(ifaceName, ipAddr, netType string) (*http.Client, error) {
 	var localIP net.IP
@@ -127,7 +132,10 @@ func ParseInterface(ifaceName, ipAddr, netType string) (*http.Client, error) {
 // Req
 // 为 req 设置请求
 func Req(c *http.Client) *req.Client {
-	client := req.C().Clone()
+	// Clone the eagerly initialized base client. Calling req.C() for
+	// every request recreates its default logger from os.Stdout, which races
+	// with callers that temporarily capture process output.
+	client := reqBaseClient.Clone()
 	client.ImpersonateChrome()
 	configureReqTransport(client, c)
 	client.R().
@@ -141,7 +149,7 @@ func Req(c *http.Client) *req.Client {
 // ReqDefault
 // 为 req 设置请求
 func ReqDefault(c *http.Client) *req.Client {
-	client := req.C().Clone()
+	client := reqBaseClient.Clone()
 	if client.Headers == nil {
 		client.Headers = make(http.Header)
 	}
