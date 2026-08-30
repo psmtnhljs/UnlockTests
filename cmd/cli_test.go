@@ -20,9 +20,53 @@ func TestParseCLIStructuredOptions(t *testing.T) {
 func TestHelpRetainsLegacyFlags(t *testing.T) {
 	var output bytes.Buffer
 	newFlagSet(&cliOptions{}, &output).PrintDefaults()
-	for _, legacy := range []string{"-b", "-f string", "-h", "-I string", "-L string", "-m int", "-s", "-test string", "-v"} {
+	for _, legacy := range []string{"-b", "-f string", "-h", "-I string", "-L string", "-m int", "-region string", "-s", "-table", "-test string", "-v"} {
 		if !strings.Contains(output.String(), legacy) {
 			t.Fatalf("help is missing legacy flag %q: %s", legacy, output.String())
+		}
+	}
+}
+
+func TestParseCLIRegionSelectionUsesLocalCompatibilityNumbers(t *testing.T) {
+	opts, err := parseCLI([]string{"-region", "0,11,sea", "-table", "-m", "4", "-timeout", "3s"})
+	if err != nil {
+		t.Fatalf("parseCLI returned error: %v", err)
+	}
+	if !opts.table || !opts.regionSet || opts.selection != "0 21 22" || opts.timeout != 3*time.Second {
+		t.Fatalf("unexpected region/table options: %#v", opts)
+	}
+}
+
+func TestParseCLIRegionSelectionAcceptsUnquotedValues(t *testing.T) {
+	opts, err := parseCLI([]string{"-region", "0", "11", "-table"})
+	if err != nil {
+		t.Fatalf("parseCLI returned error: %v", err)
+	}
+	if opts.selection != "0 21" || !opts.regionSet || !opts.table {
+		t.Fatalf("unexpected unquoted region options: %#v", opts)
+	}
+}
+
+func TestParseCLIRegionSelectionAcceptsEqualsAndMultiWordNames(t *testing.T) {
+	opts, err := parseCLI([]string{"-region=North", "America", "-json"})
+	if err != nil {
+		t.Fatalf("parseCLI returned error: %v", err)
+	}
+	if opts.selection != "14" || !opts.jsonOutput {
+		t.Fatalf("unexpected region options: %#v", opts)
+	}
+}
+
+func TestParseCLIRejectsRegionConflicts(t *testing.T) {
+	for _, args := range [][]string{
+		{"-region", "0", "-f", "0"},
+		{"-region", "0", "-test", "Netflix"},
+		{"-json", "-table"},
+		{"-table", "-json"},
+		{"-region", "unknown"},
+	} {
+		if _, err := parseCLI(args); err == nil {
+			t.Fatalf("expected arguments %v to be rejected", args)
 		}
 	}
 }

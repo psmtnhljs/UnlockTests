@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/oneclickvirt/UnlockTests/utils"
 )
 
 const (
@@ -173,11 +175,16 @@ func providerMetadataGeneratedAt(data []byte) time.Time {
 }
 
 func fetchProviderMetadata(ctx context.Context, client *http.Client, rawURL string) ([]byte, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	if err != nil {
-		return nil, err
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	response, err := client.Do(request)
+	if client == nil {
+		client = &http.Client{Timeout: 6 * time.Second}
+	}
+	response, err := utils.ReqDefault(client).R().
+		SetContext(ctx).
+		SetHeader("Accept", "application/json").
+		Get(rawURL)
 	if err != nil {
 		return nil, err
 	}

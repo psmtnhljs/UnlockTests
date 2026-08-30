@@ -54,7 +54,7 @@ Usage: ut [options]
   -cache
         enable duplicate test result caching; example: -cache
   -conc uint
-        max concurrent tests (0=unlimited); example: -conc 50
+        max concurrent tests (0=structured default or legacy unlimited); example: -conc 50
   -dns-servers string
         specify DNS servers; example: -dns-servers "1.1.1.1:53"
   -f string
@@ -66,17 +66,27 @@ Usage: ut [options]
         enable logging
   -m int
         mode: 0 (both), 4 (only), or 6 (only); default is 0, example: -m 4
+  -region string
+        select regions by number or name (0-11, comma-separated; example: -region 0,11)
   -s    show IP address status; to disable, use: -s=false (default true)
   -socks-proxy string
         specify SOCKS5 proxy; example: -socks-proxy "socks5://username:password@127.0.0.1:1080"
+  -table
+        print compact IPv4/IPv6 result tables
   -test string
         run specific providers by name or function, comma-separated; example: -test "Coze,Poe"
+  -timeout duration
+        structured/table run timeout (for example 2m)
   -v    show version
+  -json
+        print structured provider results as JSON
+  -structured
+        print structured provider results as JSON
 ```
 
 ## 检测项目选择
 
-启动后会显示菜单。也可以用 `-f` 直接指定菜单编号，多个编号用空格分隔并加引号。
+启动后会显示菜单。也可以用 `-f` 直接指定本项目的兼容菜单编号，多个编号用空格分隔并加引号。
 
 | 编号 | 检测范围 |
 |------|----------|
@@ -86,8 +96,11 @@ Usage: ut [options]
 | `19` | 仅体育平台 |
 | `20` | 全部平台 |
 | `21` | 仅 AI 平台 |
+| `22` | 仅东南亚平台 |
 
-地区平台包括台湾、香港、日本、韩国、北美、南美、欧洲、非洲、大洋洲。
+地区平台包括台湾、香港、日本、韩国、北美、南美、欧洲、非洲、东南亚和大洋洲。
+
+`-region` 使用 MediaUnlockTest 的新地区编号（`0`=跨国、`1`=台湾、`2`=香港、`3`=日本、`4`=韩国、`5`=北美、`6`=南美、`7`=欧洲、`8`=非洲、`9`=东南亚、`10`=大洋洲、`11`=AI），程序会自动转换为本项目的兼容菜单编号。例如 `ut -region 0,11` 等价于跨国和 AI，`ut -region SoutheastAsia` 只检测东南亚。`-region` 不能与 `-f` 或 `-test` 同时使用。
 
 单独运行指定平台可使用 `-test`，多个平台使用半角逗号分隔，例如：
 
@@ -106,6 +119,7 @@ ut -test "Coze,Poe"
 | `-v` | 显示版本信息并退出 | `ut -v` |
 | `-L` | 输出语言：`zh` 或 `en` | `ut -L en` |
 | `-f` | 指定菜单编号，多个编号用空格分隔 | `ut -f "0 10"` |
+| `-region` | 按上游地区编号或名称选择检测范围，多个值用逗号或空格分隔 | `ut -region 0,11` 或 `ut -region Globe,AI` |
 | `-s` | 是否显示本机出口 IP 状态 | `ut -s=false` |
 | `-b` | 是否使用进度条 | `ut -b=false` |
 | `-log` | 启用日志记录 | `ut -log` |
@@ -124,6 +138,9 @@ ut -test "Coze,Poe"
 |------|------|------|
 | `-conc` | 限制最大并发检测数量，`0` 表示不额外限制 | `ut -conc 50` |
 | `-cache` | 启用同名检测结果缓存。同一进程内重复执行时可复用结果；组合或全平台检测默认会在发起请求前按名称去重 | `ut -cache` |
+| `-timeout` | JSON、structured 或 table 模式的总超时时间 | `ut -table -timeout 2m` |
+| `-json` / `-structured` | 输出稳定的结构化 JSON 结果（包含 IPv4/IPv6、状态、区域和错误字段） | `ut -json -f 0` |
+| `-table` | 输出紧凑的 IPv4/IPv6 六列表格，并保留区域、限制、封禁、超时和限流状态 | `ut -table -region 0,11` |
 
 ## 环境变量
 
@@ -153,6 +170,7 @@ ut -test "Coze,Poe"
 | `UNLOCKTESTS_SETANTA_API_KEY` | 覆盖 Setanta Sports consent API key。 |
 | `UNLOCKTESTS_SDGGGE_TOKEN` | 覆盖 SD Gundam G 检测所需 `x-token`。 |
 | `UNLOCKTESTS_CATCHPLAY_AUTHORIZATION` | 覆盖 CatchPlay+ geo API authorization。 |
+| `UNLOCKTESTS_DEEPSEEK_IP` | 覆盖 DeepSeek 直连探测端点；可填写 IP、主机名或完整 URL，默认使用 `116.205.40.114`。 |
 
 ## 示例
 
@@ -165,6 +183,18 @@ ut -f 0
 
 # 检测跨国平台和台湾平台
 ut -f "0 10"
+
+# 使用上游地区编号，非交互式检测跨国和 AI 平台
+ut -region 0,11
+
+# 使用地区名称，仅检测东南亚平台
+ut -region SoutheastAsia
+
+# 输出紧凑的 IPv4/IPv6 表格
+ut -table -region 0,11
+
+# 输出机器可读的 JSON（与 -table 二选一）
+ut -json -region 0,11 -timeout 2m
 
 # 仅检测 IPv4
 ut -m 4 -f 0
@@ -211,7 +241,7 @@ rm -f ./ut
 ## 在 Go 中使用
 
 ```shell
-go get github.com/oneclickvirt/UnlockTests@v0.0.40-20260705091135
+go get github.com/oneclickvirt/UnlockTests@v0.0.49
 ```
 
 结构化接口适合在 goecs 等项目中直接调用，支持 `context.Context`、菜单编号选择、IPv4/IPv6 独立检测和并发上限：

@@ -1,6 +1,6 @@
 {
   "schema_version": "goecs.unlocktests/provider-metadata-v1",
-  "generated_at": "2026-07-21T17:24:38.328741Z",
+  "generated_at": "2026-08-30T08:52:24.968106Z",
   "providers": [
     {
       "id": "10-play",
@@ -546,16 +546,10 @@
       "groups": [
         "jp"
       ],
-      "supports_ipv6": false
-    },
-    {
-      "id": "fod-fuji-tv-2",
-      "name": "FOD(Fuji TV)",
-      "category": "japan",
-      "groups": [
-        "jp"
-      ],
-      "supports_ipv6": false
+      "supports_ipv6": false,
+      "aliases": [
+        "FOD(Fuji TV)"
+      ]
     },
     {
       "id": "fox",
@@ -1766,6 +1760,15 @@
         "na"
       ],
       "supports_ipv6": true
+    },
+    {
+      "id": "tv360",
+      "name": "TV360",
+      "category": "south-east-asia",
+      "groups": [
+        "sea"
+      ],
+      "supports_ipv6": false
     },
     {
       "id": "tvbanywhere",

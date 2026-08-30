@@ -20,9 +20,17 @@ import (
 	"time"
 
 	"github.com/oneclickvirt/UnlockTests/executor"
+	"github.com/oneclickvirt/UnlockTests/utils"
 )
 
 const schemaVersion = executor.ProviderMetadataSchema
+
+// providerNameAliases records spelling changes made by the upstream registry.
+// The canonical name is kept in the snapshot while the old spelling remains
+// usable by clients that persisted provider names.
+var providerNameAliases = map[string][]string{
+	"fod (fuji tv)": {"FOD(Fuji TV)"},
+}
 
 type dataDocument struct {
 	SchemaVersion string                      `json:"schema_version"`
@@ -81,14 +89,16 @@ type referenceProvider struct {
 
 func fetchReferenceProviders(ctx context.Context, client *http.Client, source string) ([]referenceProvider, error) {
 	if client == nil {
-		client = http.DefaultClient
+		client = &http.Client{Timeout: 30 * time.Second}
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
-	if err != nil {
-		return nil, err
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	request.Header.Set("User-Agent", "oneclickvirt-unlocktests-provider-sync/1")
-	response, err := client.Do(request)
+	response, err := utils.ReqDefault(client).R().
+		SetContext(ctx).
+		SetHeader("User-Agent", "oneclickvirt-unlocktests-provider-sync/1").
+		SetHeader("Accept", "text/plain, application/json;q=0.9, */*;q=0.8").
+		Get(source)
 	if err != nil {
 		return nil, err
 	}
@@ -246,6 +256,7 @@ func providerCatalog() ([]string, map[string]string, error) {
 		{"0", "global"}, {"10", "taiwan"}, {"11", "hong-kong"}, {"12", "japan"},
 		{"13", "korea"}, {"14", "north-america"}, {"15", "south-america"},
 		{"16", "europe"}, {"17", "africa"}, {"18", "oceania"}, {"19", "sports"}, {"21", "ai"},
+		{"22", "south-east-asia"},
 	} {
 		names, err := executor.ListPlatforms(group.selection)
 		if err != nil {
@@ -412,7 +423,7 @@ func mergeMetadata(names []string, categories map[string]string, reference map[s
 			if _, ok := used[index]; ok {
 				continue
 			}
-			if strings.EqualFold(provider.Name, name) || containsAlias(provider.Aliases, name) {
+			if strings.EqualFold(provider.Name, name) || containsAlias(provider.Aliases, name) || renamedProviderNameMatches(name, provider.Name) {
 				match = index
 				break
 			}
@@ -420,7 +431,12 @@ func mergeMetadata(names []string, categories map[string]string, reference map[s
 		if match >= 0 {
 			provider := current[match]
 			used[match] = struct{}{}
+			if renamedProviderNameMatches(name, provider.Name) {
+				provider.Aliases = appendUniqueAlias(provider.Aliases, provider.Name)
+				provider.Name = name
+			}
 			provider = enrichProviderMetadata(provider, categories[strings.ToLower(name)], reference[strings.ToLower(name)])
+			provider.Aliases = aliasesForProvider(provider.Name, provider.Aliases)
 			result = append(result, provider)
 		} else {
 			category := categories[strings.ToLower(name)]
@@ -428,7 +444,9 @@ func mergeMetadata(names []string, categories map[string]string, reference map[s
 				category = "other"
 			}
 			provider := executor.ProviderMetadata{Name: name, Category: category}
-			result = append(result, enrichProviderMetadata(provider, category, reference[strings.ToLower(name)]))
+			provider = enrichProviderMetadata(provider, category, reference[strings.ToLower(name)])
+			provider.Aliases = aliasesForProvider(provider.Name, provider.Aliases)
+			result = append(result, provider)
 		}
 	}
 	return ensureUniqueProviderIDs(result)
@@ -497,6 +515,58 @@ func enrichProviderMetadata(provider executor.ProviderMetadata, category string,
 	sort.Strings(provider.Groups)
 	provider.SupportsIPv6 = provider.SupportsIPv6 || reference.SupportsIPv6
 	return provider
+}
+
+func aliasesForProvider(name string, aliases []string) []string {
+	result := make([]string, 0, len(aliases)+1)
+	for _, alias := range aliases {
+		if strings.EqualFold(strings.TrimSpace(name), strings.TrimSpace(alias)) {
+			continue
+		}
+		result = appendUniqueAlias(result, alias)
+	}
+	for _, alias := range providerNameAliases[strings.ToLower(strings.TrimSpace(name))] {
+		if strings.EqualFold(strings.TrimSpace(name), strings.TrimSpace(alias)) {
+			continue
+		}
+		result = appendUniqueAlias(result, alias)
+	}
+	return result
+}
+
+func appendUniqueAlias(aliases []string, alias string) []string {
+	alias = strings.TrimSpace(alias)
+	if alias == "" {
+		return aliases
+	}
+	for _, current := range aliases {
+		if strings.EqualFold(current, alias) {
+			return aliases
+		}
+	}
+	return append(aliases, alias)
+}
+
+func renamedProviderNameMatches(canonical, candidate string) bool {
+	canonical = strings.ToLower(strings.TrimSpace(canonical))
+	candidate = strings.TrimSpace(candidate)
+	for name, aliases := range providerNameAliases {
+		if strings.EqualFold(name, canonical) {
+			for _, alias := range aliases {
+				if strings.EqualFold(alias, candidate) {
+					return true
+				}
+			}
+		}
+		if strings.EqualFold(name, candidate) {
+			for _, alias := range aliases {
+				if strings.EqualFold(alias, canonical) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func metadataID(value string) string {

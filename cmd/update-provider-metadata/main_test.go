@@ -109,3 +109,31 @@ func TestProviderCatalogIncludesAllAndPreservesAICategory(t *testing.T) {
 		t.Fatalf("unexpected provider catalog: count=%d dola=%q", len(names), categories["dola ai"])
 	}
 }
+
+func TestMergeMetadataMigratesRenamedFODProvider(t *testing.T) {
+	current := []executor.ProviderMetadata{{
+		ID: "fod-fuji-tv-2", Name: "FOD(Fuji TV)", Category: "japan", Groups: []string{"jp"},
+	}}
+	next := mergeMetadata(
+		[]string{"FOD (Fuji TV)"},
+		map[string]string{"fod (fuji tv)": "japan"},
+		map[string]referenceProvider{"fod (fuji tv)": {Name: "FOD (Fuji TV)", Category: "japan"}},
+		current,
+	)
+	if len(next) != 1 {
+		t.Fatalf("merged provider count = %d, want 1", len(next))
+	}
+	if next[0].Name != "FOD (Fuji TV)" {
+		t.Fatalf("merged name = %q", next[0].Name)
+	}
+	if !containsAlias(next[0].Aliases, "FOD(Fuji TV)") {
+		t.Fatalf("legacy FOD spelling was not retained: %#v", next[0].Aliases)
+	}
+}
+
+func TestAliasesForProviderDoesNotDuplicateLegacySpelling(t *testing.T) {
+	aliases := aliasesForProvider("FOD (Fuji TV)", []string{"FOD(Fuji TV)"})
+	if len(aliases) != 1 || aliases[0] != "FOD(Fuji TV)" {
+		t.Fatalf("aliases = %#v, want one legacy alias", aliases)
+	}
+}

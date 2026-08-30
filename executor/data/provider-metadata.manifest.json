@@ -2,6 +2,6 @@
   "schema": "goecs.unlocktests/provider-metadata-manifest-v1",
   "file": "provider-metadata.json",
   "count": 212,
-  "sha256": "43525c011dd8bb63b19349b7086477ff135b0b9562d4a43ed1fe4cf2c225292d",
-  "generated_at": "2026-07-21T17:24:38.328741Z"
+  "sha256": "734068e9eeba78bde2c1ec9d399204f81dd4b83249adca935f18b2ba4064b6e6",
+  "generated_at": "2026-08-30T08:52:24.968106Z"
 }

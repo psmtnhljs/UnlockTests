@@ -92,11 +92,10 @@ func checkAIRegionalStatus(c *http.Client, probe aiRegionalProbe) model.Result {
 		loc, _ := cloudflareTraceLocation(c, probe.hostname, probe.traceURL)
 		return model.Result{Name: probe.name, Status: model.StatusRateLimited, Region: loc, Info: "HTTP 429"}
 	}
-	for _, keyword := range probe.wafKeywords {
-		if strings.Contains(bodyText, strings.ToLower(keyword)) {
-			return model.Result{Name: probe.name, Status: model.StatusBanned, Info: "WAF"}
-		}
-	}
+	// A 403 can mean either an actual WAF block or a provider's normal
+	// regional restriction. Resolve the trace region first for probes that
+	// explicitly classify forbidden responses; otherwise a Cloudflare page
+	// would incorrectly turn restricted countries into Banned.
 	switch {
 	case probe.forbiddenCodes[resp.StatusCode]:
 		return aiForbiddenRegionResult(c, probe)
@@ -113,12 +112,18 @@ func checkAIRegionalStatus(c *http.Client, probe aiRegionalProbe) model.Result {
 		}
 		return model.Result{Name: probe.name, Status: model.StatusNo}
 	case probe.okCodes[resp.StatusCode]:
+		if aiWAFBody(bodyText, probe.wafKeywords) {
+			return model.Result{Name: probe.name, Status: model.StatusBanned, Info: "WAF"}
+		}
 		loc, ok := cloudflareTraceLocation(c, probe.hostname, probe.traceURL)
 		if !ok {
 			return model.Result{Name: probe.name, Status: model.StatusYes}
 		}
 		return aiRegionResult(probe.name, probe.hostname, loc, probe.supportCountries, probe.restrictedCountries)
 	default:
+		if aiWAFBody(bodyText, probe.wafKeywords) {
+			return model.Result{Name: probe.name, Status: model.StatusBanned, Info: "WAF"}
+		}
 		loc, ok := cloudflareTraceLocation(c, probe.hostname, probe.traceURL)
 		if ok && resp.StatusCode >= 200 && resp.StatusCode < 400 {
 			return aiRegionResult(probe.name, probe.hostname, loc, probe.supportCountries, probe.restrictedCountries)
@@ -129,6 +134,15 @@ func checkAIRegionalStatus(c *http.Client, probe aiRegionalProbe) model.Result {
 			Err:    fmt.Errorf("unexpected status code: %d", resp.StatusCode),
 		}
 	}
+}
+
+func aiWAFBody(body string, keywords []string) bool {
+	for _, keyword := range keywords {
+		if strings.TrimSpace(keyword) != "" && strings.Contains(body, strings.ToLower(keyword)) {
+			return true
+		}
+	}
+	return false
 }
 
 func cloudflareTraceLocation(c *http.Client, hostname, traceURL string) (string, bool) {

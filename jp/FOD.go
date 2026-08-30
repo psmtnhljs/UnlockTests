@@ -13,7 +13,7 @@ import (
 // FOD
 // geocontrol1.stream.ne.jp 仅 ipv4 且 get 请求
 func FOD(c *http.Client) model.Result {
-	name := "FOD(Fuji TV)"
+	name := "FOD (Fuji TV)"
 	hostname := "stream.ne.jp"
 	if c == nil {
 		return model.Result{Name: name}

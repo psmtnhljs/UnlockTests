@@ -2,9 +2,18 @@ package transnation
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/oneclickvirt/UnlockTests/model"
+	"github.com/oneclickvirt/UnlockTests/utils"
 )
+
+// SupportPerplexity reports whether the trace country is eligible for
+// Perplexity. Empty/unknown locations are treated as unsupported.
+func SupportPerplexity(loc string) bool {
+	loc = strings.ToLower(strings.TrimSpace(loc))
+	return loc != "" && !utils.GetRegion(loc, aiGlobalRestrictedCountries)
+}
 
 func PerplexityAI(c *http.Client) model.Result {
 	return checkAIRegionalStatus(c, aiRegionalProbe{

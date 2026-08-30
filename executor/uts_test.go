@@ -114,7 +114,7 @@ func TestParseSelectionRejectsInvalidWithoutKeepingOldState(t *testing.T) {
 	if parseSelection("0 invalid") {
 		t.Fatalf("expected invalid selection to be rejected")
 	}
-	if M || TW || HK || JP || KR || NA || SA || EU || AFR || OCEA || SPORT || AI {
+	if M || TW || HK || JP || KR || NA || SA || EU || AFR || SEA || OCEA || SPORT || AI {
 		t.Fatalf("expected invalid selection to reset all selection flags")
 	}
 }
@@ -168,7 +168,7 @@ func TestReferenceProvidersArePresentInExpectedSections(t *testing.T) {
 		},
 		"southeast asia": {
 			funcs: SouthEastAsia(),
-			names: []string{"Galaxy Play", "K+", "TV360", "Sooka"},
+			names: []string{"CatchPlay+", "Galaxy Play", "K+", "MX Player", "NBA TV", "Sooka", "SonyLiv", "Tata Play", "TV360", "Zee5"},
 		},
 	}
 	for section, tt := range tests {

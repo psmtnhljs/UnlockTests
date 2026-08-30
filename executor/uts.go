@@ -44,19 +44,19 @@ import (
 )
 
 var (
-	total                                               int64
-	bar                                                 *pb.ProgressBar
-	wg                                                  *sync.WaitGroup
-	IPV4, IPV6                                          = true, true
-	R                                                   []*model.Result
-	resultMutex                                         sync.Mutex
-	Names                                               []string
-	M, TW, HK, JP, KR, NA, SA, EU, AFR, OCEA, SPORT, AI = false, false, false, false, false, false, false, false, false, false, false, false
-	sem                                                 chan struct{}
-	cacheEnabled                                        = false
-	resultCache                                         = make(map[string]model.Result)
-	cacheMutex                                          sync.RWMutex
-	runTestsMutex                                       sync.Mutex
+	total                                                    int64
+	bar                                                      *pb.ProgressBar
+	wg                                                       *sync.WaitGroup
+	IPV4, IPV6                                               = true, true
+	R                                                        []*model.Result
+	resultMutex                                              sync.Mutex
+	Names                                                    []string
+	M, TW, HK, JP, KR, NA, SA, EU, AFR, SEA, OCEA, SPORT, AI = false, false, false, false, false, false, false, false, false, false, false, false, false
+	sem                                                      chan struct{}
+	cacheEnabled                                             = false
+	resultCache                                              = make(map[string]model.Result)
+	cacheMutex                                               sync.RWMutex
+	runTestsMutex                                            sync.Mutex
 )
 
 const testExecutionTimeout = 30 * time.Second
@@ -203,7 +203,7 @@ func FormarPrint(message string) string {
 		}
 	}
 	// 插入小分区的head行
-	if !M || !TW || !HK || !JP || !KR || !NA || !SA || !EU || !AFR || !OCEA || !SPORT || !AI {
+	if !M || !TW || !HK || !JP || !KR || !NA || !SA || !EU || !AFR || !SEA || !OCEA || !SPORT || !AI {
 		for _, r := range R {
 			if r.Status == model.PrintHead {
 				anotherList := []string{}
@@ -729,9 +729,11 @@ func SouthEastAsia() [](func(c *http.Client) model.Result) {
 	var FuncList = [](func(c *http.Client) model.Result){
 		asia.HotStar,
 		us.HBOMax,
+		us.NBATV,
 		// SG
 		utils.PrintSG,
 		sg.MeWatch,
+		tw.Catchplay,
 		// TH
 		utils.PrintTH,
 		th.AISPlay,
@@ -744,6 +746,12 @@ func SouthEastAsia() [](func(c *http.Client) model.Result) {
 		vn.TV360,
 		utils.PrintMY,
 		asia.Sooka,
+		// IN
+		utils.PrintIN,
+		in.TataPlay,
+		transnation.SonyLiv,
+		in.MXPlayer,
+		in.Zee5,
 	}
 	return prepareFuncList(FuncList)
 }
@@ -796,112 +804,66 @@ func IPV6Multination() [](func(c *http.Client) model.Result) {
 	return prepareFuncList(FuncList)
 }
 
+// finallyPrintResult builds the section title for the selected platform
+// groups. It keeps the historical titles while including the Southeast Asia
+// group added after the original menu was published.
 func finallyPrintResult(language, netType string) string {
-	var result string
-	getPlatformName := func(multi bool, TW, HK, JP, KR, NA, SA, EU, AFR, OCEA, SPORT, AI bool) string {
-		if TW && HK && JP && KR && NA && SA && EU && AFR && OCEA && SPORT && AI {
-			return "All Platform"
-		}
-		if AI && !TW && !HK && !JP && !KR && !NA && !SA && !EU && !AFR && !OCEA && !SPORT {
-			if multi {
-				return "Global + AI"
-			}
-			return "AI"
-		}
-		if multi {
-			if TW && !HK && !JP && !KR && !NA && !SA && !EU && !AFR && !OCEA && !SPORT {
-				return "跨国平台 + 台湾平台"
-			} else if !TW && HK && !JP && !KR && !NA && !SA && !EU && !AFR && !OCEA && !SPORT {
-				return "跨国平台 + 香港平台"
-			} else if !TW && !HK && JP && !KR && !NA && !SA && !EU && !AFR && !OCEA && !SPORT {
-				return "跨国平台 + 日本平台"
-			} else if !TW && !HK && !JP && KR && !NA && !SA && !EU && !AFR && !OCEA && !SPORT {
-				return "跨国平台 + 韩国平台"
-			} else if !TW && !HK && !JP && !KR && NA && !SA && !EU && !AFR && !OCEA && !SPORT {
-				return "跨国平台 + 北美平台"
-			} else if !TW && !HK && !JP && !KR && !NA && SA && !EU && !AFR && !OCEA && !SPORT {
-				return "跨国平台 + 南美平台"
-			} else if !TW && !HK && !JP && !KR && !NA && !SA && EU && !AFR && !OCEA && !SPORT {
-				return "跨国平台 + 欧洲平台"
-			} else if !TW && !HK && !JP && !KR && !NA && !SA && !EU && AFR && !OCEA && !SPORT {
-				return "跨国平台 + 非洲平台"
-			} else if !TW && !HK && !JP && !KR && !NA && !SA && !EU && !AFR && OCEA && !SPORT {
-				return "跨国平台 + 大洋洲平台"
-			} else if !TW && !HK && !JP && !KR && !NA && !SA && !EU && !AFR && !OCEA && SPORT {
-				return "跨国平台 + 体育平台"
-			} else if TW && HK && JP && KR && NA && SA && EU && AFR && OCEA && SPORT {
-				return "所有平台"
-			} else {
-				return "跨国平台"
-			}
-		} else {
-			if TW && !HK && !JP && !KR && !NA && !SA && !EU && !AFR && !OCEA && !SPORT {
-				return "台湾平台"
-			} else if !TW && HK && !JP && !KR && !NA && !SA && !EU && !AFR && !OCEA && !SPORT {
-				return "香港平台"
-			} else if !TW && !HK && JP && !KR && !NA && !SA && !EU && !AFR && !OCEA && !SPORT {
-				return "日本平台"
-			} else if !TW && !HK && !JP && KR && !NA && !SA && !EU && !AFR && !OCEA && !SPORT {
-				return "韩国平台"
-			} else if !TW && !HK && !JP && !KR && NA && !SA && !EU && !AFR && !OCEA && !SPORT {
-				return "北美平台"
-			} else if !TW && !HK && !JP && !KR && !NA && SA && !EU && !AFR && !OCEA && !SPORT {
-				return "南美平台"
-			} else if !TW && !HK && !JP && !KR && !NA && !SA && EU && !AFR && !OCEA && !SPORT {
-				return "欧洲平台"
-			} else if !TW && !HK && !JP && !KR && !NA && !SA && !EU && AFR && !OCEA && !SPORT {
-				return "非洲平台"
-			} else if !TW && !HK && !JP && !KR && !NA && !SA && !EU && !AFR && OCEA && !SPORT {
-				return "大洋洲平台"
-			} else if !TW && !HK && !JP && !KR && !NA && !SA && !EU && !AFR && !OCEA && SPORT {
-				return "体育平台"
-			} else {
-				return ""
-			}
+	regions := []struct {
+		enabled bool
+		zh      string
+		en      string
+	}{
+		{TW, "台湾平台", "Taiwan"},
+		{HK, "香港平台", "Hong Kong"},
+		{JP, "日本平台", "Japan"},
+		{KR, "韩国平台", "Korea"},
+		{NA, "北美平台", "North America"},
+		{SA, "南美平台", "South America"},
+		{EU, "欧洲平台", "Europe"},
+		{AFR, "非洲平台", "Africa"},
+		{SEA, "东南亚平台", "Southeast Asia"},
+		{OCEA, "大洋洲平台", "Oceania"},
+		{SPORT, "体育平台", "Sports"},
+	}
+	selected := make([]struct{ zh, en string }, 0, len(regions))
+	for _, region := range regions {
+		if region.enabled {
+			selected = append(selected, struct{ zh, en string }{region.zh, region.en})
 		}
 	}
-
-	platformName := getPlatformName(M, TW, HK, JP, KR, NA, SA, EU, AFR, OCEA, SPORT, AI)
-
-	switch language {
-	case "zh":
-		result += FormarPrint(formatVersionedHeader(netType, platformName))
-	case "en":
-		enPlatformName := map[string]string{
-			"跨国平台":         "Global",
-			"跨国平台 + 台湾平台":  "Global + Taiwan",
-			"跨国平台 + 香港平台":  "Global + Hong Kong",
-			"跨国平台 + 日本平台":  "Global + Japan",
-			"跨国平台 + 韩国平台":  "Global + Korea",
-			"跨国平台 + 北美平台":  "Global + North America",
-			"跨国平台 + 南美平台":  "Global + South America",
-			"跨国平台 + 欧洲平台":  "Global + Europe",
-			"跨国平台 + 非洲平台":  "Global + Africa",
-			"跨国平台 + 大洋洲平台": "Global + Oceania",
-			"跨国平台 + 体育平台":  "Global + Sports",
-			"台湾平台":         "Taiwan",
-			"香港平台":         "Hong Kong",
-			"日本平台":         "Japan",
-			"韩国平台":         "Korea",
-			"北美平台":         "North America",
-			"南美平台":         "South America",
-			"欧洲平台":         "Europe",
-			"非洲平台":         "Africa",
-			"大洋洲平台":        "Oceania",
-			"体育平台":         "Sports",
-			"所有平台":         "All Platform",
+	selectedCount := len(selected)
+	allRegions := selectedCount == len(regions)
+	titleZH, titleEN := "", ""
+	switch {
+	case allRegions && (M || AI):
+		titleZH, titleEN = "所有平台", "All Platform"
+	case M && AI && selectedCount == 0:
+		titleZH, titleEN = "跨国平台 + AI", "Global + AI"
+	case M && selectedCount == 1:
+		titleZH, titleEN = "跨国平台 + "+selected[0].zh, "Global + "+selected[0].en
+	case M:
+		titleZH, titleEN = "跨国平台", "Global"
+	case AI && selectedCount == 0:
+		titleZH, titleEN = "AI", "AI"
+	case selectedCount == 1:
+		titleZH, titleEN = selected[0].zh, selected[0].en
+	case selectedCount > 1:
+		zhParts := make([]string, 0, selectedCount)
+		enParts := make([]string, 0, selectedCount)
+		for _, region := range selected {
+			zhParts = append(zhParts, region.zh)
+			enParts = append(enParts, region.en)
 		}
-		displayName := enPlatformName[platformName]
-		if displayName == "" {
-			displayName = platformName
-		}
-		result += FormarPrint(formatVersionedHeader(netType, displayName))
+		titleZH, titleEN = strings.Join(zhParts, " + "), strings.Join(enParts, " + ")
 	}
-	return result
+	if language == "en" {
+		return FormarPrint(formatVersionedHeader(netType, titleEN))
+	}
+	return FormarPrint(formatVersionedHeader(netType, titleZH))
 }
 
 func resetOptions() {
-	M, TW, HK, JP, KR, NA, SA, EU, AFR, OCEA, SPORT, AI = false, false, false, false, false, false, false, false, false, false, false, false
+	M, TW, HK, JP, KR, NA, SA, EU, AFR, SEA, OCEA, SPORT, AI = false, false, false, false, false, false, false, false, false, false, false, false, false
 }
 
 func SwitchOptions(c string) bool {
@@ -951,12 +913,14 @@ func SwitchOptions(c string) bool {
 		EU = true
 	case "17":
 		AFR = true
+	case "22":
+		SEA = true
 	case "18":
 		OCEA = true
 	case "19":
 		SPORT = true
 	case "20":
-		M, TW, HK, JP, KR, NA, SA, EU, AFR, OCEA, SPORT, AI = true, true, true, true, true, true, true, true, true, true, true, true
+		M, TW, HK, JP, KR, NA, SA, EU, AFR, SEA, OCEA, SPORT, AI = true, true, true, true, true, true, true, true, true, true, true, true, true
 	case "21":
 		AI = true
 	default:
@@ -1009,6 +973,7 @@ func ReadSelect(language, flagString string) bool {
 			fmt.Println("[19]: 仅体育平台")
 			fmt.Println("[20]: 全部平台")
 			fmt.Println("[21]: 仅 AI 平台")
+			fmt.Println("[22]: 仅东南亚平台")
 			prompt = "请输入对应数字,空格分隔(回车确认): "
 		} else {
 			fmt.Println("Please select detection items:")
@@ -1034,6 +999,7 @@ func ReadSelect(language, flagString string) bool {
 			fmt.Println("[19]: Sports platform only")
 			fmt.Println("[20]: All platforms")
 			fmt.Println("[21]: AI platforms only")
+			fmt.Println("[22]: Southeast Asia platforms only")
 			prompt = "Please enter corresponding numbers, separated by spaces (press Enter to confirm): "
 		}
 		l, err := readLine(prompt)
@@ -1083,6 +1049,9 @@ func getFuncList() [](func(c *http.Client) model.Result) {
 	if AFR {
 		funcList = append(funcList, Africa()...)
 	}
+	if SEA {
+		funcList = append(funcList, SouthEastAsia()...)
+	}
 	if OCEA {
 		funcList = append(funcList, Oceania()...)
 	}
@@ -1107,6 +1076,7 @@ func allPlatformFuncList() [](func(c *http.Client) model.Result) {
 		SouthAmerica,
 		Europe,
 		Africa,
+		SouthEastAsia,
 		Oceania,
 		Sport,
 		AIPlatforms,
@@ -1132,7 +1102,7 @@ func parseTestNames(testNames string) []string {
 
 func normalizeTestName(name string) string {
 	name = strings.ToLower(strings.TrimSpace(name))
-	replacer := strings.NewReplacer(" ", "", "-", "", "_", "", ".", "", "+", "", "'", "", "\"", "")
+	replacer := strings.NewReplacer(" ", "", "-", "", "_", "", ".", "", "+", "", "'", "", "\"", "", "(", "", ")", "", "[", "", "]", "")
 	return replacer.Replace(name)
 }
 
