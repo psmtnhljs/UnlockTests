@@ -67,7 +67,7 @@ Usage: ut [options]
   -m int
         mode: 0 (both), 4 (only), or 6 (only); default is 0, example: -m 4
   -region string
-        select regions by number or name (0-11, comma-separated; example: -region 0,11)
+        select menu groups by number or name (0-22; commas, spaces, or ranges; example: -region 11,21)
   -s    show IP address status; to disable, use: -s=false (default true)
   -socks-proxy string
         specify SOCKS5 proxy; example: -socks-proxy "socks5://username:password@127.0.0.1:1080"
@@ -100,7 +100,7 @@ Usage: ut [options]
 
 地区平台包括台湾、香港、日本、韩国、北美、南美、欧洲、非洲、东南亚和大洋洲。
 
-`-region` 使用 MediaUnlockTest 的新地区编号（`0`=跨国、`1`=台湾、`2`=香港、`3`=日本、`4`=韩国、`5`=北美、`6`=南美、`7`=欧洲、`8`=非洲、`9`=东南亚、`10`=大洋洲、`11`=AI），程序会自动转换为本项目的兼容菜单编号。例如 `ut -region 0,11` 等价于跨国和 AI，`ut -region SoutheastAsia` 只检测东南亚。`-region` 不能与 `-f` 或 `-test` 同时使用。
+`-region` 的数字与本项目交互菜单完全一致：`11`=仅香港平台、`21`=仅 AI 平台，名称也可使用，例如 `ut -region Globe,hongkong`。多个项目可用逗号或空格分隔，例如 `ut -region 11,21`；连续菜单编号可用范围写法，例如 `ut -region 11-18`。注意 `11-21` 会包含菜单项 `20`（全部平台），因此等价于全平台检测；若只需要香港和 AI，请使用 `11,21`。`-region` 不能与 `-f` 或 `-test` 同时使用。
 
 单独运行指定平台可使用 `-test`，多个平台使用半角逗号分隔，例如：
 
@@ -119,7 +119,7 @@ ut -test "Coze,Poe"
 | `-v` | 显示版本信息并退出 | `ut -v` |
 | `-L` | 输出语言：`zh` 或 `en` | `ut -L en` |
 | `-f` | 指定菜单编号，多个编号用空格分隔 | `ut -f "0 10"` |
-| `-region` | 按上游地区编号或名称选择检测范围，多个值用逗号或空格分隔 | `ut -region 0,11` 或 `ut -region Globe,AI` |
+| `-region` | 按本项目菜单编号或地区名称选择检测范围，多个值用逗号、空格或数值范围分隔 | `ut -region 11,21` 或 `ut -region Globe,hongkong` |
 | `-s` | 是否显示本机出口 IP 状态 | `ut -s=false` |
 | `-b` | 是否使用进度条 | `ut -b=false` |
 | `-log` | 启用日志记录 | `ut -log` |
@@ -184,17 +184,17 @@ ut -f 0
 # 检测跨国平台和台湾平台
 ut -f "0 10"
 
-# 使用上游地区编号，非交互式检测跨国和 AI 平台
-ut -region 0,11
+# 使用菜单编号，非交互式检测香港和 AI 平台
+ut -region 11,21
 
 # 使用地区名称，仅检测东南亚平台
 ut -region SoutheastAsia
 
 # 输出紧凑的 IPv4/IPv6 表格
-ut -table -region 0,11
+ut -table -region 11,21
 
 # 输出机器可读的 JSON（与 -table 二选一）
-ut -json -region 0,11 -timeout 2m
+ut -json -region 11,21 -timeout 2m
 
 # 仅检测 IPv4
 ut -m 4 -f 0
@@ -241,7 +241,7 @@ rm -f ./ut
 ## 在 Go 中使用
 
 ```shell
-go get github.com/oneclickvirt/UnlockTests@v0.0.51-20260831005719
+go get github.com/oneclickvirt/UnlockTests@v0.0.52
 ```
 
 结构化接口适合在 goecs 等项目中直接调用，支持 `context.Context`、菜单编号选择、IPv4/IPv6 独立检测和并发上限：

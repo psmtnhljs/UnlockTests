@@ -27,13 +27,23 @@ func TestHelpRetainsLegacyFlags(t *testing.T) {
 	}
 }
 
-func TestParseCLIRegionSelectionUsesLocalCompatibilityNumbers(t *testing.T) {
+func TestParseCLIRegionSelectionUsesMenuNumbers(t *testing.T) {
 	opts, err := parseCLI([]string{"-region", "0,11,sea", "-table", "-m", "4", "-timeout", "3s"})
 	if err != nil {
 		t.Fatalf("parseCLI returned error: %v", err)
 	}
-	if !opts.table || !opts.regionSet || opts.selection != "0 21 22" || opts.timeout != 3*time.Second {
+	if !opts.table || !opts.regionSet || opts.selection != "0 11 22" || opts.timeout != 3*time.Second {
 		t.Fatalf("unexpected region/table options: %#v", opts)
+	}
+}
+
+func TestParseCLIRegionSelectionAcceptsMultipleMenuNumbers(t *testing.T) {
+	opts, err := parseCLI([]string{"-region", "11,21", "-table"})
+	if err != nil {
+		t.Fatalf("parseCLI returned error: %v", err)
+	}
+	if opts.selection != "11 21" || !opts.regionSet || !opts.table {
+		t.Fatalf("unexpected menu-number options: %#v", opts)
 	}
 }
 
@@ -42,7 +52,7 @@ func TestParseCLIRegionSelectionAcceptsUnquotedValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseCLI returned error: %v", err)
 	}
-	if opts.selection != "0 21" || !opts.regionSet || !opts.table {
+	if opts.selection != "0 11" || !opts.regionSet || !opts.table {
 		t.Fatalf("unexpected unquoted region options: %#v", opts)
 	}
 }
@@ -57,6 +67,16 @@ func TestParseCLIRegionSelectionAcceptsEqualsAndMultiWordNames(t *testing.T) {
 	}
 }
 
+func TestParseCLIRegionSelectionAcceptsNumericRanges(t *testing.T) {
+	opts, err := parseCLI([]string{"-region", "11-18", "-table"})
+	if err != nil {
+		t.Fatalf("parseCLI returned error: %v", err)
+	}
+	if opts.selection != "11 12 13 14 15 16 17 18" || !opts.regionSet || !opts.table {
+		t.Fatalf("unexpected range options: %#v", opts)
+	}
+}
+
 func TestParseCLIRejectsRegionConflicts(t *testing.T) {
 	for _, args := range [][]string{
 		{"-region", "0", "-f", "0"},
@@ -64,6 +84,7 @@ func TestParseCLIRejectsRegionConflicts(t *testing.T) {
 		{"-json", "-table"},
 		{"-table", "-json"},
 		{"-region", "unknown"},
+		{"-region", "11-23"},
 	} {
 		if _, err := parseCLI(args); err == nil {
 			t.Fatalf("expected arguments %v to be rejected", args)

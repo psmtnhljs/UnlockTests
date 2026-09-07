@@ -177,7 +177,7 @@ func newFlagSet(opts *cliOptions, output io.Writer) *flag.FlagSet {
 	fs.StringVar(&opts.language, "L", "zh", "language; specify 'en' for English or 'zh' for Chinese")
 	fs.BoolVar(&opts.jsonOutput, "json", false, "print structured provider results as JSON")
 	fs.BoolVar(&opts.jsonOutput, "structured", false, "print structured provider results as JSON")
-	fs.StringVar(&opts.region, "region", "", "select regions by number or name (0-11, comma-separated; example: -region 0,11)")
+	fs.StringVar(&opts.region, "region", "", "select menu groups by number or name (0-22; commas, spaces, or ranges; example: -region 11,21)")
 	fs.BoolVar(&opts.table, "table", false, "print compact IPv4/IPv6 result tables")
 	fs.DurationVar(&opts.timeout, "timeout", 0, "structured/table run timeout (for example 2m)")
 	return fs

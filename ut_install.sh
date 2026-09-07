@@ -51,6 +51,25 @@ windows_path() {
   fi
 }
 
+# BSD chmod, cp, install, mkdir, and rm do not all accept GNU-style `--`.
+# Prefix a relative operand beginning with '-' instead, which keeps it an
+# operand without relying on a non-portable end-of-options marker.
+safe_path() {
+  case "$1" in
+    -*) printf './%s\n' "$1" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+copy_file() {
+  cp -f "$(safe_path "$1")" "$(safe_path "$2")"
+}
+
+# shellcheck disable=SC2329 # Invoked indirectly by the EXIT trap below.
+remove_file() {
+  rm -f "$(safe_path "$1")"
+}
+
 detect_os_arch() {
   local os arch
   os="$(uname -s)"
@@ -145,18 +164,24 @@ is_admin() {
 
 can_write_dir() {
   local dir="$1"
-  mkdir -p -- "$dir" 2>/dev/null && [ -w "$dir" ]
+  local operand
+  operand="$(safe_path "$dir")"
+  mkdir -p "$operand" 2>/dev/null && [ -w "$operand" ]
 }
 
 install_binary() {
   local source="$1" dir="$2"
   local destination="${dir}/${bin_name}"
-  mkdir -p -- "$dir"
+  local source_operand dir_operand destination_operand
+  source_operand="$(safe_path "$source")"
+  dir_operand="$(safe_path "$dir")"
+  destination_operand="$(safe_path "$destination")"
+  mkdir -p "$dir_operand"
   if command -v install >/dev/null 2>&1; then
-    install -m 0755 -- "$source" "$destination"
+    install -m 0755 "$source_operand" "$destination_operand"
   else
-    cp -- "$source" "$destination"
-    chmod 0755 -- "$destination"
+    cp "$source_operand" "$destination_operand"
+    chmod 0755 "$destination_operand"
   fi
   echo "Installed ${bin_name} to ${destination}"
 }
@@ -168,6 +193,7 @@ install_binary_elevated() {
     if ! command -v powershell.exe >/dev/null 2>&1; then
       return 1
     fi
+    # shellcheck disable=SC2016 # PowerShell expands these environment variables.
     UT_INSTALL_SRC="$(windows_path "$source")" \
     UT_INSTALL_DIR="$(windows_path "$dir")" \
     UT_INSTALL_DEST="$(windows_path "$destination")" \
@@ -178,24 +204,28 @@ install_binary_elevated() {
     fi
     return 1
   fi
+  local source_operand dir_operand destination_operand
+  source_operand="$(safe_path "$source")"
+  dir_operand="$(safe_path "$dir")"
+  destination_operand="$(safe_path "$destination")"
   if command -v sudo >/dev/null 2>&1; then
-    sudo mkdir -p -- "$dir"
+    sudo mkdir -p "$dir_operand"
     if command -v install >/dev/null 2>&1; then
-      sudo install -m 0755 -- "$source" "$destination"
+      sudo install -m 0755 "$source_operand" "$destination_operand"
     else
-      sudo cp -- "$source" "$destination"
-      sudo chmod 0755 -- "$destination"
+      sudo cp "$source_operand" "$destination_operand"
+      sudo chmod 0755 "$destination_operand"
     fi
     echo "Installed ${bin_name} to ${destination}"
     return 0
   fi
   if command -v doas >/dev/null 2>&1; then
-    doas mkdir -p -- "$dir"
+    doas mkdir -p "$dir_operand"
     if command -v install >/dev/null 2>&1; then
-      doas install -m 0755 -- "$source" "$destination"
+      doas install -m 0755 "$source_operand" "$destination_operand"
     else
-      doas cp -- "$source" "$destination"
-      doas chmod 0755 -- "$destination"
+      doas cp "$source_operand" "$destination_operand"
+      doas chmod 0755 "$destination_operand"
     fi
     echo "Installed ${bin_name} to ${destination}"
     return 0
@@ -238,7 +268,7 @@ choose_install_dir() {
 check_cdn() {
   local origin_url="$1"
   for cdn_url in "${cdn_urls[@]}"; do
-    if curl -fsSL -k --max-time 6 -- "${cdn_url}${origin_url}" | grep -q "success"; then
+    if curl -fsSL -k --max-time 6 "${cdn_url}${origin_url}" | grep -q "success"; then
       cdn_success_url="$cdn_url"
       return 0
     fi
@@ -253,12 +283,12 @@ download_asset() {
   download_url="${cdn_success_url}${url}"
   echo "Downloading ${asset_name}..."
   if command -v wget >/dev/null 2>&1; then
-    if wget -q -O "$target" -- "$download_url"; then
+    if wget -q -O "$target" "$download_url"; then
       return 0
     fi
     echo "wget download failed, falling back to curl" >&2
   fi
-  curl -fsSL -o "$target" -- "$download_url"
+  curl -fsSL -o "$target" "$download_url"
 }
 
 # Replace existing ut binaries found on the system (current dir, PATH, common locations)
@@ -268,7 +298,7 @@ replace_existing() {
 
   # 1) Copy to current working directory so ./ut works immediately
   if [ -n "${PWD:-}" ] && [ -d "$PWD" ] && [ -w "$PWD" ]; then
-    cp -f -- "$source" "${PWD}/${bin_name}" 2>/dev/null || true
+    copy_file "$source" "${PWD}/${bin_name}" 2>/dev/null || true
     echo "Copied ${bin_name} to current directory: ${PWD}/${bin_name}"
   fi
 
@@ -292,7 +322,7 @@ replace_existing() {
       [ "$p" = "$installed_to" ] && continue
       [ "$p" = "${PWD}/${bin_name}" ] && continue
       if [ -w "$p" ] 2>/dev/null || [ -w "$(dirname "$p")" ] 2>/dev/null; then
-        cp -f -- "$source" "$p" 2>/dev/null && echo "Replaced existing ${bin_name} at ${p}"
+        copy_file "$source" "$p" 2>/dev/null && echo "Replaced existing ${bin_name} at ${p}"
       fi
     done <<< "$existing"
   fi
@@ -306,7 +336,7 @@ replace_existing() {
     [ "$candidate" = "${PWD}/${bin_name}" ] && continue
     if [ -f "$candidate" ]; then
       if [ -w "$candidate" ] 2>/dev/null || [ -w "$d" ] 2>/dev/null; then
-        cp -f -- "$source" "$candidate" 2>/dev/null && echo "Replaced ${bin_name} at ${candidate}"
+        copy_file "$source" "$candidate" 2>/dev/null && echo "Replaced ${bin_name} at ${candidate}"
       fi
     fi
   done
@@ -319,7 +349,7 @@ detect_os_arch
 choose_install_dir
 
 tmp_file="$(mktemp)"
-trap 'rm -f -- "$tmp_file"' EXIT
+trap 'remove_file "$tmp_file"' EXIT
 
 check_cdn "https://raw.githubusercontent.com/spiritLHLS/ecs/main/back/test"
 if [ -n "$cdn_success_url" ]; then
@@ -329,7 +359,7 @@ else
 fi
 
 download_asset "$asset" "$tmp_file"
-chmod 0755 -- "$tmp_file"
+chmod 0755 "$(safe_path "$tmp_file")"
 
 installed_to=""
 if install_binary "$tmp_file" "$install_dir" 2>/dev/null; then
